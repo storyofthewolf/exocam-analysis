@@ -19,9 +19,7 @@ import netCDF4 as nc
 import numpy as np
 import exocampy_tools as exo
 import argparse
-import analysis_utils
-
-import argparse
+import analysis_utils 
 import sys
 
 # input arguments and options                                                                                                      
@@ -78,6 +76,7 @@ for i in range(num):
 
     # pressures
     PS     = ncid.variables['PS'][:]          ; PS = np.squeeze(PS)
+    print(PS)
     P0     = ncid.variables['P0'][:]          ; P0 = np.squeeze(P0)
    
 
@@ -289,14 +288,16 @@ for i in range(num):
                     TGCLDIWP_SS[y,x]   = TGCLDIWP[y,x]    ;  TGCLDIWP_AS[y,x]   = -999.0
                     TGCLDLWP_SS[y,x]   = TGCLDLWP[y,x]    ;  TGCLDLWP_AS[y,x]   = -999.0
                     FLNT_SS[y,x]       = FLNT[y,x]        ;  FLNT_AS[y,x]       = -999.0
-                    lw_cldforc_SS[y,x] = lw_cldforc[y,x]  ;  lw_cldforc_AS[y,x] = -999.0                
+                    if args.cf == True:
+                        lw_cldforc_SS[y,x] = lw_cldforc[y,x]  ;  lw_cldforc_AS[y,x] = -999.0                
                 else:
                     TS_SS[y,x]         = -999.0           ;  TS_AS[y,x]         = TS[y,x]
                     CLDTOT_SS[y,x]     = -999.0           ;  CLDTOT_AS[y,x]     = CLDTOT[y,x]
                     TGCLDIWP_SS[y,x]   = -999.0           ;  TGCLDIWP_AS[y,x]   = TGCLDIWP[y,x]
                     TGCLDLWP_SS[y,x]   = -999.0           ;  TGCLDLWP_AS[y,x]   = TGCLDLWP[y,x]
                     FLNT_SS[y,x]       = -999.0           ;  FLNT_AS[y,x]       = FLNT[y,x]
-                    lw_cldforc_SS[y,x] = -999.0           ;  lw_cldforc_AS[y,x] = lw_cldforc[y,x]
+                    if args.cf == True:
+                        lw_cldforc_SS[y,x] = -999.0           ;  lw_cldforc_AS[y,x] = lw_cldforc[y,x]
 
         TS_SS_gmean          = exo.area_weighted_avg(lon, lat, TS_SS)
         TS_AS_gmean          = exo.area_weighted_avg(lon, lat, TS_AS)
