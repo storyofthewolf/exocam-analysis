@@ -1,13 +1,27 @@
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-README file for "analysis"
+# analysis
 
-NOTE: requires exocampy_tools.py
-found in ExoCAM/tools/py_progs
-https://github.com/storyofthewolf/ExoCAM/blob/main/tools/py_progs/exocampy_tools.py
+Analysis of small batches of CESM/ExoCAM equilibrium climate simulations.
+For timeseries analysis see the `trend` package.
+https://github.com/storyofthewolf/trend
 
-This set of scripts will facilitate analysis of small batches
-of CESM/ExoCAM climate calculations.  This is designed to 
-analyze equilbriate ExoCAM simulations.  For timeseries analysis
-see the "trend" package.
+## Dependencies
+- [`exocampy_tools.py`](https://github.com/storyofthewolf/ExoCAM/blob/main/tools/py_progs/exocampy_tools.py)
 
-More description to come ... 
+## Usage
+```bash
+python run_analysis.py [options]
+```
+Reads in list of files defined in `files.in`
+
+| Option | Description |
+|--------|-------------|
+| `--quiet` | do not print to screen |
+| `--printdata` | print output text files |
+| `--vert` | calculate vertical profiles |
+| `--synch` | calculate substellar/antistellar means |
+| `--cf` | tabulate clear sky fluxes and cloud forcings |
+| `--nostrout` | remove string type from output text file |
+
+
+## Notes
+- [March, 23, 2026] added global mean vertical profile plotting 
