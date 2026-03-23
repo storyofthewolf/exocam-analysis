@@ -39,9 +39,9 @@ def read_file_list():
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # // print global mean data to file //
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def print_data_to_file(num, filelist_short, datacube, varnames):
+def print_data_to_file(num, filelist_short, datacube, varnames, nostrout):
 
-    outfile = "output.txt"
+    outfile = "analysis_output.txt"
 
     char_count_array = np.array([len(s) for s in filelist_short])                      
     maxchar = np.amax(char_count_array)
@@ -67,12 +67,17 @@ def print_data_to_file(num, filelist_short, datacube, varnames):
                     if (j == np.amax(index)): endstr=('\n')
                     print(format_string.format(varnames[j]), flush=True,  end=endstr, file=f)
                 endstr =' '
-            # This prints file index and name    
-            if ii < 10:   istr2 = str(ii) + '   ' + filelist_short[i]
-            if ii >= 10:  istr2 = str(ii) + '  '  + filelist_short[i]
-            if ii >= 100: istr2 = str(ii) + ' '   + filelist_short[i]
+            # This prints file index and name
+            if (nostrout == False):
+                if ii < 10:   istr2 = str(ii) + '   ' + filelist_short[i]
+                if ii >= 10:  istr2 = str(ii) + '  '  + filelist_short[i]
+                if ii >= 100: istr2 = str(ii) + ' '   + filelist_short[i]
+            if (nostrout == True):
+                if ii < 10:   istr2 = str(ii) + '   '
+                if ii >= 10:  istr2 = str(ii) + '  '
+                if ii >= 100: istr2 = str(ii) + ' '
             istr2 = "{:<{}}".format(istr2, maxchar+4)
-            print(istr2, end=endstr, flush=True, file=f)            
+            print(istr2, end=endstr, flush=True, file=f)
             for j in index:                
                 # This prints the output data
                 if (varnames[j] == "Q_STRAT"): 

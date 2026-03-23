@@ -1,7 +1,9 @@
-/gpfsm/dhome/etwolf
+/Users/wolfe/Desktop/projects/volcanos/runs
 2
-WD5000K_100_Earth_sync_4x5.cam.h0.161_170_avg.nc
-K62_100_Earth_sync_4x5.cam.h0.151_160_avg.nc
+cam_mixed_fv_modern_noO3.cam.h0.0060-12.nc
+cam_mixed_fv_modern.cam.h0.0060-12.nc
+
+
 
 
 
@@ -12,6 +14,3 @@ K62_100_Earth_sync_4x5.cam.h0.151_160_avg.nc
 first line is the common root directory of the files you are working with
 second line is the number of files to be processed
 finally we have a list of the files to be read and processes
-
-if --vertical option is used, input gravity and molecular weight of dry air
-after file names

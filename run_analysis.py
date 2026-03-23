@@ -1,7 +1,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# analysis.py                                                                        
+# run_analysis.py                                                                        
 #                                                                                    
 # Author Eric Wolf                                                                   
 # June 2023                                                                          
@@ -19,15 +19,20 @@ import netCDF4 as nc
 import numpy as np
 import exocampy_tools as exo
 import argparse
-import analysis_utils 
+import analysis_utils
+import plotting                        # <-- new plotting module
+import argparse
 import sys
 
 # input arguments and options                                                                                                      
 parser = argparse.ArgumentParser()
 parser.add_argument('--quiet',         action='store_true', help='do not print to screen')
+parser.add_argument('--printdata',     action='store_true', help='print output text files')
 parser.add_argument('--vert',          action='store_true', help='calculate vertical profiles')
 parser.add_argument('--synch',         action='store_true', help='calculate substellar/antistellar means')
 parser.add_argument('--cf',            action='store_true', help='tabulate clear sky fluxes and cloud forcings')
+parser.add_argument('--nostrout',      action='store_true', help='remove string type from output text file')
+
 args = parser.parse_args()
 
 root, num, filelist_short, grav, mwdry = analysis_utils.read_file_list()
@@ -38,6 +43,10 @@ filelist[:] = root + '/' + filelist_short[:]
 nvars = 50
 datacube = np.zeros((nvars, num), dtype=float)
 varnames = np.empty(nvars, dtype='U100')
+
+# accumulate vertical profile data across files when --vert is active.
+# each element is a dict containing 1D profile arrays for one simulation.
+profiles = []                          # <-- new: list to collect per-file profile dicts
 
 print(' ')
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
@@ -251,6 +260,17 @@ for i in range(num):
         # function to print profile information to a text file
         # analysis_utils.print_vertical_to_file(num, filelist_short, data)
 
+        # accumulate profile data for plotting.
+        # store as a dict so adding new variables later (e.g. RELHUM, CLOUD)
+        # is a one-line change here and a one-line change in plotting.py.
+        profiles.append({
+            'label'      : filelist_short[i],
+            'Pmid'       : Pmid_profile.copy(),
+            'T'          : Tmid_profile.copy(),
+            'Q'          : Qmid_profile.copy(),
+            'lapse_rate' : lapse_rate.copy(),
+        })
+
 
     # top layer temperature, water vapor and clouds
     PTOP = lev_P[0,:,:] 
@@ -289,7 +309,7 @@ for i in range(num):
                     TGCLDLWP_SS[y,x]   = TGCLDLWP[y,x]    ;  TGCLDLWP_AS[y,x]   = -999.0
                     FLNT_SS[y,x]       = FLNT[y,x]        ;  FLNT_AS[y,x]       = -999.0
                     if args.cf == True:
-                        lw_cldforc_SS[y,x] = lw_cldforc[y,x]  ;  lw_cldforc_AS[y,x] = -999.0                
+                        lw_cldforc_SS[y,x] = lw_cldforc[y,x]  ;  lw_cldforc_AS[y,x] = -999.0
                 else:
                     TS_SS[y,x]         = -999.0           ;  TS_AS[y,x]         = TS[y,x]
                     CLDTOT_SS[y,x]     = -999.0           ;  CLDTOT_AS[y,x]     = CLDTOT[y,x]
@@ -321,6 +341,7 @@ for i in range(num):
         if args.synch == True:
             print("TS_SS, TS_AS ", TS_SS_gmean, TS_AS_gmean)
         print("TS max, TS min ", np.max(TS[:,:]), np.min(TS[:,:]))
+        print("T max, T min ", np.max(T[:,:,:]), np.min(T[:,:,:]))
         print("ICEFRAC", ICEFRAC_gmean)
         print("toa albedo ", toa_albedo_gmean)
         print("srf albedo ", srf_albedo_gmean)
@@ -365,11 +386,19 @@ for i in range(num):
     datacube[x,i] = TGCLDLWP_gmean    ; varnames[x] = 'TGCLDLWP'  ; x=x+1
     datacube[x,i] = TGCLDIWP_gmean    ; varnames[x] = 'TGCLDIWP'  ; x=x+1
     datacube[x,i] = CLDTOT_gmean      ; varnames[x] = 'CLDTOT'    ; x=x+1
+    if (args.cf == True):
+        datacube[x,i] = sw_cldforc_gmean      ; varnames[x] = 'CLDFORC_LW'    ; x=x+1
+        datacube[x,i] = lw_cldforc_gmean      ; varnames[x] = 'CLDFORC_SW'    ; x=x+1
     if (args.vert == True):
         datacube[x,i] = Q_STRAT_gmean ; varnames[x] = 'Q_STRAT'   ; x=x+1
     
-# output global mean quantities a text file
-analysis_utils.print_data_to_file(num, filelist_short, datacube, varnames)
+# output global mean quantities to a text file
+if args.printdata == True:
+    analysis_utils.print_data_to_file(num, filelist_short, datacube, varnames, args.nostrout)
+
+# generate vertical profile plots if requested
+if args.vert == True:
+    plotting.plot_vert_profiles(profiles)
 
 
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
