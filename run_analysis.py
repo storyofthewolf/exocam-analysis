@@ -23,6 +23,8 @@ import analysis_utils
 import plotting                        # <-- new plotting module
 import argparse
 import sys
+import pickle
+
 
 # input arguments and options                                                                                                      
 parser = argparse.ArgumentParser()
@@ -84,8 +86,7 @@ for i in range(num):
     nlev = lev.size
 
     # pressures
-    PS     = ncid.variables['PS'][:]          ; PS = np.squeeze(PS)
-    print(PS)
+    PS     = ncid.variables['PS'][:]          ; PS = np.squeeze(PS)    
     P0     = ncid.variables['P0'][:]          ; P0 = np.squeeze(P0)
    
 
@@ -396,11 +397,21 @@ for i in range(num):
 if args.printdata == True:
     analysis_utils.print_data_to_file(num, filelist_short, datacube, varnames, args.nostrout)
 
+
+
+    
 # generate vertical profile plots if requested
 if args.vert == True:
+    with open('profiles.pkl', 'wb') as f:
+        pickle.dump(profiles, f)
     plotting.plot_vert_profiles(profiles)
+    plotting.plot_vert_profiles_2x2(profiles,
+                                top=[0,1],
+                                bottom=[4,5,6,7],
+                                top_title='Earth similar',
+                                bottom_title='THAI')
 
-
+    
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 print(' Exiting analysis.py ... ')
 print(' ... i hope you found the answers that you seek ')
