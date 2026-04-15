@@ -1,4 +1,7 @@
+#!/usr/bin/env python  
+
 # make_plots.py
+
 
 import pickle
 import plotting

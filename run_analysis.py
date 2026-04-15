@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -19,9 +21,9 @@ import netCDF4 as nc
 import numpy as np
 import exocampy_tools as exo
 import argparse
+import os
 import analysis_utils
-import plotting                        # <-- new plotting module
-import argparse
+import plotting
 import sys
 import pickle
 
@@ -34,12 +36,32 @@ parser.add_argument('--vert',          action='store_true', help='calculate vert
 parser.add_argument('--synch',         action='store_true', help='calculate substellar/antistellar means')
 parser.add_argument('--cf',            action='store_true', help='tabulate clear sky fluxes and cloud forcings')
 parser.add_argument('--nostrout',      action='store_true', help='remove string type from output text file')
+parser.add_argument('--filename',      type=str, default=None,
+                                       help='single netcdf file to analyze (overrides files.in)')
+parser.add_argument('--grav',          type=float, default=9.81,
+                                       help='gravity for --filename mode (default: 9.81)')
+parser.add_argument('--mwdry',         type=float, default=28.966,
+                                       help='dry air molecular weight for --filename mode (default: 28.966)')
 
 args = parser.parse_args()
 
-root, num, filelist_short, grav, mwdry = analysis_utils.read_file_list()
-filelist = np.empty(num, dtype='U200')
-filelist[:] = root + '/' + filelist_short[:]
+# ---------------------------------------------------------------
+# build filelist either from command line or files.in
+# ---------------------------------------------------------------
+if args.filename is not None:
+    # command line mode: single file, split into root + short name
+    # so the rest of the script sees the same variables as always
+    root           = os.path.dirname(os.path.abspath(args.filename))
+    filelist_short = np.array([os.path.basename(args.filename)], dtype=object)
+    num            = 1
+    grav           = np.array([args.grav],  dtype=float)
+    mwdry          = np.array([args.mwdry], dtype=float)
+    filelist       = np.array([os.path.abspath(args.filename)], dtype='U200')
+else:
+    # default mode: read batch list from files.in
+    root, num, filelist_short, grav, mwdry = analysis_utils.read_file_list()
+    filelist = np.empty(num, dtype='U200')
+    filelist[:] = root + '/' + filelist_short[:]
 
 # define vector arrays of variables explored
 nvars = 50
@@ -47,15 +69,17 @@ datacube = np.zeros((nvars, num), dtype=float)
 varnames = np.empty(nvars, dtype='U100')
 
 # accumulate vertical profile data across files when --vert is active.
-# each element is a dict containing 1D profile arrays for one simulation.
-profiles = []                          # <-- new: list to collect per-file profile dicts
+profiles = []
 
 print(' ')
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-print(' Entering analysis.py ')
-print(' files read in from files.in ')
+print(' Entering run_analysis.py ')
+if args.filename is not None:
+    print(' file read from command line argument --filename')
+else:
+    print(' files read in from files.in ')
 
 if args.vert == True:
     print("If using Z vertical coordinates, make sure to set gravity and mwdry in files.in")
@@ -120,7 +144,6 @@ for i in range(num):
     FSNT   = ncid.variables['FSNT'][:]    ; FSNT      = np.squeeze(FSNT)
 
     if 'FSDTOA' in ncid.variables:
-        # Variable exists, you can proceed to read it
         FSDTOA = ncid.variables['FSDTOA'][:]  ; FSDTOA    = np.squeeze(FSDTOA)
 
     FLNS    = ncid.variables['FLNS'][:]   ; FLNS      = np.squeeze(FLNS)
@@ -258,12 +281,6 @@ for i in range(num):
             for g in range(nlev+1):
                 print(g, Pint_profile[g], Zint_profile[g], Tint_profile[g])
 
-        # function to print profile information to a text file
-        # analysis_utils.print_vertical_to_file(num, filelist_short, data)
-
-        # accumulate profile data for plotting.
-        # store as a dict so adding new variables later (e.g. RELHUM, CLOUD)
-        # is a one-line change here and a one-line change in plotting.py.
         profiles.append({
             'label'      : filelist_short[i],
             'Pmid'       : Pmid_profile.copy(),
@@ -335,8 +352,6 @@ for i in range(num):
 
     if args.quiet == False:
         ########  print global mean quantities  ###########    
-        # These are a set of outputs of common interest for
-        # print to screen applications
         print("------------------ global mean ------------------")
         print("TS mean ", TS_gmean)
         if args.synch == True:
@@ -371,8 +386,6 @@ for i in range(num):
                 print("LW CLOUD FORCING SS ", lw_cldforc_SS_gmean)
                 print("LW CLOUD FORCING AS ", lw_cldforc_AS_gmean)
 
-    # Presently, the data sent to print to file routines are user specified here
-    # Later I might create a namelist around these instead
     x=0
     datacube[x,i] = TS_gmean          ; varnames[x] = 'TS'        ; x=x+1
     if (args.vert == True):
@@ -397,23 +410,15 @@ for i in range(num):
 if args.printdata == True:
     analysis_utils.print_data_to_file(num, filelist_short, datacube, varnames, args.nostrout)
 
-
-
-    
 # generate vertical profile plots if requested
 if args.vert == True:
     with open('profiles.pkl', 'wb') as f:
         pickle.dump(profiles, f)
     plotting.plot_vert_profiles(profiles)
-    plotting.plot_vert_profiles_2x2(profiles,
-                                top=[0,1],
-                                bottom=[4,5,6,7],
-                                top_title='Earth similar',
-                                bottom_title='THAI')
 
     
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-print(' Exiting analysis.py ... ')
+print(' Exiting run_analysis.py ... ')
 print(' ... i hope you found the answers that you seek ')
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')

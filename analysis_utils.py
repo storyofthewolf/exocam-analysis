@@ -119,7 +119,7 @@ def tprofile_diags(pmid, tmid, zint, tint):
 
     # define tropopause as the minimum temperature
     t_tropo = np.min(tmid)
-    i_tropo = np.where(tmid[:] == np.min(tmid[:]))
+    i_tropo = np.where(tmid[:] == np.min(tmid[:]))[0][0]
     p_tropo = pmid[i_tropo]
     #print("itropo ", i_tropo, t_tropo, p_tropo)
     
@@ -127,7 +127,7 @@ def tprofile_diags(pmid, tmid, zint, tint):
     # at or above the already defined tropopause
     stratcol = np.where(pmid[:] <= p_tropo)
     t_strat  = np.max(tmid[stratcol])
-    i_strat  = np.where(tmid[:] == max(tmid[stratcol]))
+    i_strat  = np.where(tmid[:] == max(tmid[stratcol]))[0][0]
     p_strat  = pmid[i_strat] 
     #print("strat ", i_strat, t_strat, p_strat)
    
