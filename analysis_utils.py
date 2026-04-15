@@ -1,135 +1,193 @@
 # analysis_utils.py
 #
+# Input/output utilities for ExoCAM analysis.
 #
-#
-#  Contains functions for inputs, outputs, and basic plotting
+# Functions:
+#   read_file_list        -- parse files.in batch configuration
+#   print_diagnostics     -- print global means to screen
+#   print_data_to_file    -- write global means to analysis_output.txt
 #
 
-import sys
 import numpy as np
-import exocampy_tools as exo
+from typing import List
+from core.data_model import Diagnostics
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# // read_file_list //
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def read_file_list():
 
-    with open('files.in', 'r') as file:
-        root = file.readline()
-        root = root.rstrip("\n")
-        num = file.readline()
-        num = int(num)
-        filelist = np.array([None] * num, dtype=object)
-        grav     = np.array([None] * num, dtype=float)
-        mwdry    = np.array([None] * num, dtype=float)
+# ================================================================
+#  File list parsing
+# ================================================================
+
+def read_file_list(path: str = 'files.in') -> tuple:
+    """Parse a files.in batch configuration file.
+
+    Format:
+        line 1 : root directory
+        line 2 : number of files
+        line 3+: filename [grav] [mwdry]   (grav/mwdry optional, default 9.81 / 28.966)
+
+    Returns
+    -------
+    root, num, filelist, grav_array, mwdry_array
+    """
+    with open(path, 'r') as f:
+        root = f.readline().rstrip('\n')
+        num  = int(f.readline())
+        filelist = np.empty(num, dtype=object)
+        grav     = np.full(num, 9.81)
+        mwdry    = np.full(num, 28.966)
         for i in range(num):
-            j=i+1
-            line_in = file.readline()             
-            line_in = line_in.split()
-            filelist[i] = line_in[0]
-            if len(line_in) > 2:
-                grav[i]  = line_in[1]
-                mwdry[i] = line_in[2]
-            else:
-                grav[i]  = 9.81
-                mwdry[i] = 28.966
-
+            parts = f.readline().split()
+            filelist[i] = parts[0]
+            if len(parts) >= 3:
+                grav[i]  = float(parts[1])
+                mwdry[i] = float(parts[2])
     return root, num, filelist, grav, mwdry
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# // print global mean data to file //
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def print_data_to_file(num, filelist_short, datacube, varnames, nostrout):
 
-    outfile = "analysis_output.txt"
+# ================================================================
+#  Ordered list of keys for text output
+# (defines column order in the output file)
+# ================================================================
 
-    char_count_array = np.array([len(s) for s in filelist_short])                      
-    maxchar = np.amax(char_count_array)
-    istr = "i   filenames"
-    istr = "{:<{}}".format(istr, maxchar+4) 
-    format_real = "{:10.4f}"
-    format_exp  = "{:10.4e}"
-    format_string = "{:>10}"
-    index = np.where(np.array(datacube[:,0]) != 0.0)[0]
+_OUTPUT_KEY_ORDER = [
+    'TS', 'T_STRAT', 'T_TROPO',
+    'ICEFRAC',
+    'toa_albedo', 'srf_albedo',
+    'OLR',
+    'toa_balance', 'srf_balance',
+    'TMQ', 'TGCLDLWP', 'TGCLDIWP',
+    'CLDTOT',
+    'sw_cldforc', 'lw_cldforc',
+    'Q_STRAT',
+    'FLNT', 'FSNT', 'FLNS', 'FSNS',
+    'FULTOA', 'FDLTOA', 'FUSTOA', 'FDSTOA',
+    'FULSRF', 'FDLSRF', 'FUSSRF', 'FDSSRF',
+    'PTOP', 'TTOP', 'QTOP',
+    'TS_SS', 'TS_AS',
+    'CLDTOT_SS', 'CLDTOT_AS',
+    'TGCLDLWP_SS', 'TGCLDLWP_AS',
+    'TGCLDIWP_SS', 'TGCLDIWP_AS',
+    'FLNT_SS', 'FLNT_AS',
+    'lw_cldforc_SS', 'lw_cldforc_AS',
+]
 
-    with open(outfile,"w") as f:
-        for i in range(num):
-
-            endstr = ' '
-            ii=i+1
-            if ii==1:
-                # This prints the header information
-                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", file=f)
-                print("CESM ExoCAM diagnostic output using analysis.py", file=f)
-                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", file=f)
-                print(istr, end=endstr,flush=True, file=f)
-                for j in index:
-                    if (j == np.amax(index)): endstr=('\n')
-                    print(format_string.format(varnames[j]), flush=True,  end=endstr, file=f)
-                endstr =' '
-            # This prints file index and name
-            if (nostrout == False):
-                if ii < 10:   istr2 = str(ii) + '   ' + filelist_short[i]
-                if ii >= 10:  istr2 = str(ii) + '  '  + filelist_short[i]
-                if ii >= 100: istr2 = str(ii) + ' '   + filelist_short[i]
-            if (nostrout == True):
-                if ii < 10:   istr2 = str(ii) + '   '
-                if ii >= 10:  istr2 = str(ii) + '  '
-                if ii >= 100: istr2 = str(ii) + ' '
-            istr2 = "{:<{}}".format(istr2, maxchar+4)
-            print(istr2, end=endstr, flush=True, file=f)
-            for j in index:                
-                # This prints the output data
-                if (varnames[j] == "Q_STRAT"): 
-                    format_number = format_exp
-                else:
-                    format_number = format_real
-                if (j == np.amax(index)): endstr=('\n')
-                print(format_number.format(datacube[j,i]), end=endstr, flush=True,  file=f)
-    print("output data written to ", outfile)
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# // calculate global mean profiles //
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def calc_gmean_profiles(lon, lat, var):
-    nlev = var.shape[0]   
-    var_gmean = np.zeros((nlev), dtype=float)
-
-    for z in range(nlev):    
-        temp_in      = var[z,:,:] ; temp_in = np.squeeze(temp_in)
-        temp_out     =  exo.area_weighted_avg(lon, lat, temp_in)
-        var_gmean[z] = temp_out
-        
-    return var_gmean
+_SCI_NOTATION_KEYS = {'Q_STRAT', 'QTOP'}
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# // calculate lapse rate, tropopause, and stratosphere 
-# // temperature and pressure levels 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def tprofile_diags(pmid, tmid, zint, tint):
-    # pressure input on the midlayers
-    # temperatures and height input on interfaces
-    nlev = pmid.shape[0]   
-    lapse_rate = np.zeros((nlev), dtype=float)
-    for z in range(nlev):
-        deltaT      = (tint[z-1]   - tint[z])
-        deltaZ      = (zint[z-1] - zint[z])
-        lapse_rate[z] = (-1)*deltaT/(deltaZ/1000.0) 
+# ================================================================
+#  Screen output
+# ================================================================
 
-    # define tropopause as the minimum temperature
-    t_tropo = np.min(tmid)
-    i_tropo = np.where(tmid[:] == np.min(tmid[:]))[0][0]
-    p_tropo = pmid[i_tropo]
-    #print("itropo ", i_tropo, t_tropo, p_tropo)
-    
-    # define stratosphere temperature as maximum temperature
-    # at or above the already defined tropopause
-    stratcol = np.where(pmid[:] <= p_tropo)
-    t_strat  = np.max(tmid[stratcol])
-    i_strat  = np.where(tmid[:] == max(tmid[stratcol]))[0][0]
-    p_strat  = pmid[i_strat] 
-    #print("strat ", i_strat, t_strat, p_strat)
-   
-    return lapse_rate, i_tropo, i_strat
+def print_diagnostics(diag: Diagnostics,
+                      show_vert:  bool = False,
+                      show_cf:    bool = False,
+                      show_synch: bool = False) -> None:
+    """Print global mean diagnostics to the screen for one simulation."""
+    gm = diag.global_means
 
+    def g(key, default=None):
+        return gm.get(key, default)
+
+    print('------------------ global mean ------------------')
+    print(f"TS mean              {g('TS'):.4f}")
+    if show_synch and 'TS_SS' in gm:
+        print(f"TS_SS, TS_AS         {g('TS_SS'):.4f}  {g('TS_AS'):.4f}")
+    print(f"ICEFRAC              {g('ICEFRAC'):.4f}")
+    print(f"toa albedo           {g('toa_albedo'):.4f}")
+    print(f"srf albedo           {g('srf_albedo'):.4f}")
+    print(f"TMQ TGCLDLWP TGCLDIWP  {g('TMQ'):.4f}  {g('TGCLDLWP'):.4f}  {g('TGCLDIWP'):.4f}")
+    print(f"CLDTOT               {g('CLDTOT'):.4f}")
+    if show_synch and 'CLDTOT_SS' in gm:
+        print(f"CLDTOT_SS, CLDTOT_AS {g('CLDTOT_SS'):.4f}  {g('CLDTOT_AS'):.4f}")
+        print(f"TGCLDLWP_SS, AS      {g('TGCLDLWP_SS'):.4f}  {g('TGCLDLWP_AS'):.4f}")
+        print(f"TGCLDIWP_SS, AS      {g('TGCLDIWP_SS'):.4f}  {g('TGCLDIWP_AS'):.4f}")
+    print(f"TOA ENERGY BALANCE   {g('toa_balance'):.4f}  {g('energy_balance'):.4f}")
+    print(f"SRF ENERGY BALANCE   {g('srf_balance'):.4f}")
+    print(f"FLNT FSNT            {g('FLNT'):.4f}  {g('FSNT'):.4f}")
+    if show_synch and 'FLNT_SS' in gm:
+        print(f"FLNT_SS, FLNT_AS     {g('FLNT_SS'):.4f}  {g('FLNT_AS'):.4f}")
+    if 'FSDTOA' in gm:
+        print(f"FSDTOA               {g('FSDTOA'):.4f}")
+    print(f"LW FLUXES (TOA)      {g('FULTOA'):.4f}  {g('FDLTOA'):.4f}  "
+          f"{g('FULTOA') - g('FDLTOA'):.4f}")
+    print(f"SW FLUXES (TOA)      {g('FUSTOA'):.4f}  {g('FDSTOA'):.4f}  "
+          f"{g('FDSTOA') - g('FUSTOA'):.4f}")
+    print(f"TOP                  {g('PTOP'):.4f}  {g('TTOP'):.4f}  {g('QTOP'):.4e}")
+    if show_vert and 'T_TROPO' in gm:
+        print(f"T_TROPO, T_STRAT     {g('T_TROPO'):.4f}  {g('T_STRAT'):.4f}")
+        print(f"Q_STRAT              {g('Q_STRAT'):.4e}")
+    if show_cf and 'FLNTC' in gm:
+        print(f"FLNTC FSNTC          {g('FLNTC'):.4f}  {g('FSNTC'):.4f}")
+        print(f"CLEAR-SKY LW (TOA)   {g('FULCTOA'):.4f}  {g('FDLCTOA'):.4f}  "
+              f"{g('FULCTOA') - g('FDLCTOA'):.4f}")
+        print(f"CLEAR-SKY SW (TOA)   {g('FUSCTOA'):.4f}  {g('FDSCTOA'):.4f}  "
+              f"{g('FDSCTOA') - g('FUSCTOA'):.4f}")
+        print(f"SW CLOUD FORCING     {g('sw_cldforc'):.4f}")
+        print(f"LW CLOUD FORCING     {g('lw_cldforc'):.4f}")
+        if show_synch and 'lw_cldforc_SS' in gm:
+            print(f"LW CLD FORC SS/AS    {g('lw_cldforc_SS'):.4f}  {g('lw_cldforc_AS'):.4f}")
+
+
+# ================================================================
+#  Text file output
+# ================================================================
+
+def print_data_to_file(diagnostics_list: List[Diagnostics],
+                       nostrout: bool = False,
+                       outfile: str = 'analysis_output.txt') -> None:
+    """Write global mean diagnostics to a formatted text file.
+
+    Columns are the variable names present across all simulations (in
+    _OUTPUT_KEY_ORDER); rows are simulations.
+
+    Arguments
+    ---------
+    diagnostics_list : list of Diagnostics objects
+    nostrout         : if True, omit simulation name from output rows
+    outfile          : output file path
+    """
+    # Determine which keys are actually populated (union across all simulations)
+    all_keys = set()
+    for d in diagnostics_list:
+        all_keys.update(d.global_means.keys())
+    # Filter to ordered list, preserving defined order, appending any extras
+    ordered = [k for k in _OUTPUT_KEY_ORDER if k in all_keys]
+    extras  = sorted(all_keys - set(ordered))
+    ordered += extras
+
+    labels   = [d.label for d in diagnostics_list]
+    maxchar  = max(len(s) for s in labels)
+    hdr_pad  = maxchar + 4
+
+    fmt_real = '{:10.4f}'
+    fmt_exp  = '{:10.4e}'
+    fmt_str  = '{:>10}'
+
+    with open(outfile, 'w') as f:
+        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', file=f)
+        print('CESM ExoCAM diagnostic output using run_analysis.py',     file=f)
+        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', file=f)
+
+        # Header row
+        hdr = '{:<{}}'.format('i   filenames', hdr_pad)
+        f.write(hdr + ' ')
+        for j, key in enumerate(ordered):
+            end = '\n' if j == len(ordered) - 1 else ' '
+            f.write(fmt_str.format(key) + end)
+
+        # Data rows
+        for i, diag in enumerate(diagnostics_list):
+            ii = i + 1
+            if nostrout:
+                row_str = f'{ii:<3}'
+            else:
+                row_str = f'{ii}   {diag.label}'
+            row_str = '{:<{}}'.format(row_str, hdr_pad)
+            f.write(row_str + ' ')
+            for j, key in enumerate(ordered):
+                val = diag.global_means.get(key, 0.0)
+                fmt = fmt_exp if key in _SCI_NOTATION_KEYS else fmt_real
+                end = '\n' if j == len(ordered) - 1 else ' '
+                f.write(fmt.format(val) + end)
+
+    print(f'output data written to {outfile}')

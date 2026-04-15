@@ -1,0 +1,80 @@
+# configs/example.yaml
+#
+# Example study configuration for run_analysis.py / make_plot.py
+#
+# Usage:
+#   python run_analysis.py --config configs/example.yaml
+#   python make_plot.py    --cache diagnostics.pkl --config configs/example.yaml
+
+# Root directory prepended to all filenames
+root: /path/to/data/
+
+# Files to analyze.  Each entry is either a plain filename string, or a dict
+# with name/grav/mwdry for non-Earth gravity (e.g. other planets).
+files:
+  - modern_earth.cam.h0.avg.nc
+  - noO3_earth.cam.h0.avg.nc
+  - trappist1e_ben1.cam.h0.avg.nc
+  - trappist1e_ben2.cam.h0.avg.nc
+  # Example with custom gravity/mwdry:
+  # - name: venus_run.cam.h0.avg.nc
+  #   grav: 8.87
+  #   mwdry: 43.45
+
+# Computation options
+options:
+  vert:      true    # compute vertical profiles (slow, needed for vert_1x3/vert_2x2)
+  synch:     false   # substellar/antistellar means (tidally locked planets)
+  cf:        false   # clear-sky fluxes and cloud radiative effect
+  printdata: false   # write global means to analysis_output.txt
+
+# Fields to save in cache for contour plots.
+# Only fields listed here will be available to map_latlon / section_* plots.
+# Omit or leave empty lists to skip contour plot caching.
+cache:
+  save: diagnostics.pkl
+  fields_2d:
+    - TS
+    - CLDTOT
+    - FLNT
+    - FSNT
+    - ICEFRAC
+  fields_3d:
+    - T
+    - Q
+    - CLOUD
+
+# Plots to generate inline after analysis.
+# Each entry needs at minimum: type and output.
+plots:
+
+  # --- vertical profile plots ---
+  - type: vert_1x3
+    output: vert_profiles.png
+
+  - type: vert_2x2
+    top:          [0, 1]
+    bottom:       [2, 3]
+    top_title:    "Earth-similar"
+    bottom_title: "TRAPPIST-1 e"
+    output: vert_profiles_2x2.png
+
+  # --- surface map ---
+  - type: map_latlon
+    var:       TS
+    sim_index: 0
+    output:    map_TS_earth.png
+
+  # --- latitude-pressure zonal mean cross-section ---
+  - type: section_latpres
+    var:        T
+    sim_index:  0
+    zonal_mean: true
+    output:     section_T_latpres_earth.png
+
+  # --- longitude-pressure equatorial cross-section ---
+  - type: section_lonpres
+    var:       T
+    sim_index: 2
+    lat_deg:   0.0
+    output:    section_T_lonpres_trappist.png
