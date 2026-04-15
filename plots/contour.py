@@ -13,7 +13,7 @@ from typing import List
 import matplotlib.pyplot as plt
 
 from core.data_model import Diagnostics
-from plots.base import Plot, setup_pressure_axis
+from plots.base import Plot, setup_pressure_axis, save_figure
 from plots.registry import register_plot
 
 
@@ -66,7 +66,6 @@ class MapLatLon(Plot):
         var       = options['var']
         sim_idx   = options.get('sim_index', 0)
         lev_index = options.get('lev_index', 0)
-        outfile   = options.get('output', f'map_{var}.png')
 
         diag = diagnostics[sim_idx]
         lon  = diag.coords['lon']
@@ -74,10 +73,15 @@ class MapLatLon(Plot):
 
         # Try 2D first, then slice from 3D
         if var in diag.fields_2d:
-            data = diag.fields_2d[var]          # (nlat, nlon)
+            data    = diag.fields_2d[var]          # (nlat, nlon)
+            title   = f'{var}  —  {diag.label}'
+            outfile = options.get('output', f'results/{var}_map.png')
         elif var in diag.fields_3d:
-            data = diag.fields_3d[var][lev_index]  # (nlat, nlon)
-            outfile = options.get('output', f'map_{var}_lev{lev_index}.png')
+            data      = diag.fields_3d[var][lev_index]   # (nlat, nlon)
+            pres_hPa  = float(diag.coords['Pmid'][lev_index]) / 100.0
+            title     = f'{var}  lev {lev_index} ({pres_hPa:.1f} hPa)  —  {diag.label}'
+            outfile   = options.get('output',
+                            f'results/{var}_map_lev{lev_index}_{pres_hPa:.1f}hPa.png')
         else:
             raise KeyError(
                 f"Variable '{var}' not found in 2D or 3D cache for '{diag.label}'.\n"
@@ -92,10 +96,9 @@ class MapLatLon(Plot):
 
         ax.set_xlabel('Longitude (°)')
         ax.set_ylabel('Latitude (°)')
-        ax.set_title(f'{var}  —  {diag.label}')
+        ax.set_title(title)
         plt.tight_layout()
-        plt.savefig(outfile, dpi=150, bbox_inches='tight')
-        plt.close(fig)
+        save_figure(fig, outfile)
         print(f'map plot written to {outfile}')
 
 
@@ -103,34 +106,43 @@ class MapLatLon(Plot):
 #  section_latpres
 # ================================================================
 
-@register_plot('section_latpres')
+@register_plot('latpres')
 class SectionLatPres(Plot):
-    """Latitude × pressure zonal mean cross-section.
+    """Latitude × pressure cross-section.
+
+    Default: zonal mean (average over all longitudes).
+    If lon_deg is provided, slices at the nearest grid longitude instead.
 
     YAML options
     ------------
     var        : 3D variable name (must be in fields_3d)
     sim_index  : index into diagnostics list (default: 0)
-    zonal_mean : average over longitude before plotting (default: True)
-    output     : output filename (default: section_<var>_latpres.png)
+    lon_deg    : longitude of slice in degrees; omit for zonal mean
+    output     : output filename (default: <var>_latpres.png)
     """
 
     def render(self, diagnostics: List[Diagnostics], options: dict) -> None:
-        var        = options['var']
-        sim_idx    = options.get('sim_index', 0)
-        zonal_mean = options.get('zonal_mean', True)
-        outfile    = options.get('output', f'section_{var}_latpres.png')
+        var     = options['var']
+        sim_idx = options.get('sim_index', 0)
+        lon_deg = options.get('lon_deg', None)   # None → zonal mean
 
-        diag = diagnostics[sim_idx]
-        lat  = diag.coords['lat']
+        diag     = diagnostics[sim_idx]
+        lat      = diag.coords['lat']
+        lon      = diag.coords['lon']
         Pmid_hPa = diag.coords['Pmid'] / 100.0   # Pa → hPa
 
         data3d = _get_field(diag, var, is_3d=True)   # (nlev, nlat, nlon)
 
-        if zonal_mean:
-            data = np.mean(data3d, axis=2)            # (nlev, nlat)
+        if lon_deg is None:
+            data     = np.mean(data3d, axis=2)        # (nlev, nlat) zonal mean
+            title    = f'{var} (zonal mean)  —  {diag.label}'
+            outfile  = options.get('output', f'results/{var}_latpres_zonalavg.png')
         else:
-            data = data3d[:, :, 0]                    # first longitude (fallback)
+            lon_idx    = int(np.argmin(np.abs(lon - lon_deg)))
+            lon_actual = float(lon[lon_idx])
+            data     = data3d[:, :, lon_idx]          # (nlev, nlat)
+            title    = f'{var} at {lon_actual:.1f}°E  —  {diag.label}'
+            outfile  = options.get('output', f'results/{var}_latpres_lon{lon_actual:.1f}.png')
 
         LAT, PRES = np.meshgrid(lat, Pmid_hPa)
 
@@ -142,11 +154,9 @@ class SectionLatPres(Plot):
         _pressure_axis(ax, Pmid_hPa)
 
         ax.set_xlabel('Latitude (°)')
-        title = f'{var} (zonal mean)' if zonal_mean else f'{var}'
-        ax.set_title(f'{title}  —  {diag.label}')
+        ax.set_title(title)
         plt.tight_layout()
-        plt.savefig(outfile, dpi=150, bbox_inches='tight')
-        plt.close(fig)
+        save_figure(fig, outfile)
         print(f'lat-pressure section written to {outfile}')
 
 
@@ -154,7 +164,7 @@ class SectionLatPres(Plot):
 #  section_lonpres
 # ================================================================
 
-@register_plot('section_lonpres')
+@register_plot('lonpres')
 class SectionLonPres(Plot):
     """Longitude × pressure cross-section at a specified latitude.
 
@@ -166,14 +176,13 @@ class SectionLonPres(Plot):
     var       : 3D variable name (must be in fields_3d)
     sim_index : index into diagnostics list (default: 0)
     lat_deg   : latitude of the cross-section in degrees (default: 0.0 = equator)
-    output    : output filename (default: section_<var>_lonpres.png)
+    output    : output filename (default: <var>_lonpres.png)
     """
 
     def render(self, diagnostics: List[Diagnostics], options: dict) -> None:
         var     = options['var']
         sim_idx = options.get('sim_index', 0)
         lat_deg = options.get('lat_deg', 0.0)
-        outfile = options.get('output', f'section_{var}_lonpres.png')
 
         diag = diagnostics[sim_idx]
         lon  = diag.coords['lon']
@@ -183,8 +192,9 @@ class SectionLonPres(Plot):
         data3d = _get_field(diag, var, is_3d=True)   # (nlev, nlat, nlon)
 
         # Find nearest latitude index
-        lat_idx = int(np.argmin(np.abs(lat - lat_deg)))
+        lat_idx    = int(np.argmin(np.abs(lat - lat_deg)))
         lat_actual = float(lat[lat_idx])
+        outfile    = options.get('output', f'results/{var}_lonpres_lat{lat_actual:.1f}.png')
 
         data = data3d[:, lat_idx, :]                  # (nlev, nlon)
 
@@ -200,6 +210,5 @@ class SectionLonPres(Plot):
         ax.set_xlabel('Longitude (°)')
         ax.set_title(f'{var} at {lat_actual:.1f}°  —  {diag.label}')
         plt.tight_layout()
-        plt.savefig(outfile, dpi=150, bbox_inches='tight')
-        plt.close(fig)
+        save_figure(fig, outfile)
         print(f'lon-pressure section written to {outfile}')

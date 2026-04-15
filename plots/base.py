@@ -3,6 +3,7 @@
 # Abstract base class for all plot types, plus shared axis helpers.
 #
 
+import os
 from abc import ABC, abstractmethod
 from typing import List
 import matplotlib
@@ -50,3 +51,12 @@ def get_labels(diagnostics: List[Diagnostics], labels=None) -> list:
     if labels is not None:
         return labels
     return [d.label for d in diagnostics]
+
+
+def save_figure(fig, outfile: str, dpi: int = 150) -> None:
+    """Save figure, creating parent directory if needed."""
+    parent = os.path.dirname(outfile)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    fig.savefig(outfile, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)

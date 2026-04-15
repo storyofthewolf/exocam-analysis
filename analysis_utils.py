@@ -3,7 +3,6 @@
 # Input/output utilities for ExoCAM analysis.
 #
 # Functions:
-#   read_file_list        -- parse files.in batch configuration
 #   print_diagnostics     -- print global means to screen
 #   print_data_to_file    -- write global means to analysis_output.txt
 #
@@ -11,37 +10,6 @@
 import numpy as np
 from typing import List
 from core.data_model import Diagnostics
-
-
-# ================================================================
-#  File list parsing
-# ================================================================
-
-def read_file_list(path: str = 'files.in') -> tuple:
-    """Parse a files.in batch configuration file.
-
-    Format:
-        line 1 : root directory
-        line 2 : number of files
-        line 3+: filename [grav] [mwdry]   (grav/mwdry optional, default 9.81 / 28.966)
-
-    Returns
-    -------
-    root, num, filelist, grav_array, mwdry_array
-    """
-    with open(path, 'r') as f:
-        root = f.readline().rstrip('\n')
-        num  = int(f.readline())
-        filelist = np.empty(num, dtype=object)
-        grav     = np.full(num, 9.81)
-        mwdry    = np.full(num, 28.966)
-        for i in range(num):
-            parts = f.readline().split()
-            filelist[i] = parts[0]
-            if len(parts) >= 3:
-                grav[i]  = float(parts[1])
-                mwdry[i] = float(parts[2])
-    return root, num, filelist, grav, mwdry
 
 
 # ================================================================
@@ -95,24 +63,27 @@ def print_diagnostics(diag: Diagnostics,
     print(f"ICEFRAC              {g('ICEFRAC'):.4f}")
     print(f"toa albedo           {g('toa_albedo'):.4f}")
     print(f"srf albedo           {g('srf_albedo'):.4f}")
-    print(f"TMQ TGCLDLWP TGCLDIWP  {g('TMQ'):.4f}  {g('TGCLDLWP'):.4f}  {g('TGCLDIWP'):.4f}")
+    print(f"TMQ                  {g('TMQ'):.4f}")
+    print(f"TGCLDLWP             {g('TGCLDLWP'):.4f}")
+    print(f"TGCLDIWP             {g('TGCLDIWP'):.4f}")
     print(f"CLDTOT               {g('CLDTOT'):.4f}")
     if show_synch and 'CLDTOT_SS' in gm:
         print(f"CLDTOT_SS, CLDTOT_AS {g('CLDTOT_SS'):.4f}  {g('CLDTOT_AS'):.4f}")
         print(f"TGCLDLWP_SS, AS      {g('TGCLDLWP_SS'):.4f}  {g('TGCLDLWP_AS'):.4f}")
         print(f"TGCLDIWP_SS, AS      {g('TGCLDIWP_SS'):.4f}  {g('TGCLDIWP_AS'):.4f}")
-    print(f"TOA ENERGY BALANCE   {g('toa_balance'):.4f}  {g('energy_balance'):.4f}")
+    #print(f"TOA ENERGY BALANCE   {g('toa_balance'):.4f}  {g('energy_balance'):.4f}")
+    print(f"TOA ENERGY BALANCE   {g('toa_balance'):.4f}")
     print(f"SRF ENERGY BALANCE   {g('srf_balance'):.4f}")
     print(f"FLNT FSNT            {g('FLNT'):.4f}  {g('FSNT'):.4f}")
     if show_synch and 'FLNT_SS' in gm:
         print(f"FLNT_SS, FLNT_AS     {g('FLNT_SS'):.4f}  {g('FLNT_AS'):.4f}")
     if 'FSDTOA' in gm:
         print(f"FSDTOA               {g('FSDTOA'):.4f}")
-    print(f"LW FLUXES (TOA)      {g('FULTOA'):.4f}  {g('FDLTOA'):.4f}  "
+    print(f"LW FLUXES TOA (DN,UP,NET)      {g('FULTOA'):.4f}  {g('FDLTOA'):.4f}  "
           f"{g('FULTOA') - g('FDLTOA'):.4f}")
-    print(f"SW FLUXES (TOA)      {g('FUSTOA'):.4f}  {g('FDSTOA'):.4f}  "
+    print(f"SW FLUXES TOA (DN,UP,NET)      {g('FUSTOA'):.4f}  {g('FDSTOA'):.4f}  "
           f"{g('FDSTOA') - g('FUSTOA'):.4f}")
-    print(f"TOP                  {g('PTOP'):.4f}  {g('TTOP'):.4f}  {g('QTOP'):.4e}")
+    print(f"TOP (P[Pa],T[K],Q[kg/kg] {g('PTOP'):.4f}  {g('TTOP'):.4f}  {g('QTOP'):.4e}")
     if show_vert and 'T_TROPO' in gm:
         print(f"T_TROPO, T_STRAT     {g('T_TROPO'):.4f}  {g('T_STRAT'):.4f}")
         print(f"Q_STRAT              {g('Q_STRAT'):.4e}")

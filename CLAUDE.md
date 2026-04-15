@@ -10,6 +10,105 @@ gravity and dry air molecular weight).
 
 ---
 
+## What was accomplished (April 15, 2026)
+
+### `make_plot.py` CLI plot mode
+
+`make_plot.py` was previously config-only. A full CLI plot mode was added via `--type`,
+allowing any plot type to be driven directly from the command line without a YAML file:
+
+```bash
+python make_plot.py --cache data/diagnostics.pkl --type map_latlon --var TS
+python make_plot.py --cache data/diagnostics.pkl --type latpres --var T --lon 180.0
+python make_plot.py --cache data/diagnostics.pkl --type lonpres --var T --sim 1 --lat 0.0
+python make_plot.py --cache data/diagnostics.pkl --type vert_2x2 --top 0,1 --bottom 2,3
+```
+
+Pre-render validation checks `--sim`, `--var`, `--lev`, `--lat`, and `--lon` against
+the loaded cache before any plotting begins, exiting with descriptive messages on error.
+`--lat` and `--lon` use nearest-match logic with info/warning lines reporting the actual
+grid coordinate used (warning threshold: >5° offset).
+
+### Plot type renames
+
+`section_latpres` → `latpres`, `section_lonpres` → `lonpres` in the plot registry,
+YAML configs, CLI, and all documentation. `latpres` now accepts `lon_deg` for a
+longitude slice; omitting it gives the zonal mean (default).
+
+### `files.in` mode removed
+
+Single-file (`--filename`) and YAML (`--config`) are the only supported input modes.
+`read_file_list()` removed from `analysis_utils.py`. Running without either flag exits
+with a clear error.
+
+### Output directory structure
+
+All outputs are now written to subdirectories rather than the project root:
+
+| Output | Default path |
+|--------|-------------|
+| Diagnostics cache | `data/diagnostics.pkl` |
+| All plot types | `results/<filename>.png` |
+
+Directories are created automatically (`os.makedirs(..., exist_ok=True)`). A shared
+`save_figure(fig, outfile)` helper in `plots/base.py` handles directory creation and
+`plt.close()` for all plot types. `cache.save()` handles directory creation for `.pkl`.
+Explicit `output:` paths in YAML or `--output` on the CLI go wherever specified, with
+their parent directories created as needed.
+
+### Default filename conventions
+
+Plot filenames now encode the relevant coordinate:
+
+| Plot | Example default filename |
+|------|--------------------------|
+| `map_latlon` (2D var) | `results/TS_map.png` |
+| `map_latlon` (3D var) | `results/T_map_lev5_532.3hPa.png` |
+| `latpres` (zonal mean) | `results/T_latpres_zonalavg.png` |
+| `latpres` (lon slice) | `results/T_latpres_lon180.0.png` |
+| `lonpres` | `results/T_lonpres_lat0.0.png` |
+
+For `map_latlon` on 3D variables, the pressure level in hPa also appears in the plot title.
+For `latpres` lon slices and `lonpres`, the actual grid-snapped coordinate is used in
+both the filename and title.
+
+### `inspect_cache.py` utility
+
+New standalone script that prints metadata for a Diagnostics `.pkl` file without
+re-reading any netCDF:
+
+```bash
+python inspect_cache.py                        # reads data/diagnostics.pkl
+python inspect_cache.py data/my_study.pkl
+python inspect_cache.py data/my_study.pkl --sim 2
+python inspect_cache.py --values               # print actual global mean values
+```
+
+Output includes: simulation labels, coordinate grids (lon/lat/lev ranges), global mean
+variable list, vertical profile presence and ranges, synch mean variable list, and
+cached 2D/3D field names with shapes and value ranges.
+
+### YAML dict-entry fix (`name:` key required)
+
+When specifying per-file `grav`/`mwdry` in a YAML config, the filename must use the
+`name:` key. Plain strings and dict entries cannot be mixed in the same list item:
+
+```yaml
+# correct
+files:
+  - name: simulation.cam.h0.avg.nc
+    grav: 9.12
+    mwdry: 28.0
+  - plain_earth.cam.h0.avg.nc   # plain string still works when no grav/mwdry needed
+```
+
+### `core/cache.py` sys.path fix
+
+`cache.load()` now inserts the package root onto `sys.path` before unpickling, so
+`core.data_model` classes resolve correctly when loading from scripts in any directory.
+
+---
+
 ## What was accomplished (April 14, 2026)
 
 ### Architecture refactor
@@ -56,31 +155,42 @@ netCDF → core/reader.py → core/compute.py → Diagnostics → core/cache.py 
 - **`vertical.py`** — `vert_1x3` and `vert_2x2` refactored from `plotting.py`
   (now deleted). Uses `VerticalProfile` objects from `Diagnostics.profile`.
 
-- **`contour.py`** — Three new plot types for 2D spatial data:
+- **`contour.py`** — Three plot types for 2D spatial data:
   - `map_latlon`: lon×lat filled contour map. Source: `Diagnostics.fields_2d[var]`
-    or a pressure-level slice of `fields_3d[var]`.
-  - `section_latpres`: lat×pressure cross-section with zonal mean option.
-    Source: `Diagnostics.fields_3d[var]`, averaged over longitude.
-  - `section_lonpres`: lon×pressure cross-section at a specified latitude (default:
-    equator). Particularly useful for tidally locked exoplanets.
+    or a pressure-level slice of `fields_3d[var]`. For 3D variables, level index and
+    pressure in hPa are appended to the default filename and shown in the plot title.
+  - `latpres`: lat×pressure cross-section. Default: zonal mean. If `lon_deg` is
+    provided, slices at the nearest grid longitude instead. Source: `fields_3d[var]`.
+  - `lonpres`: lon×pressure cross-section at a specified latitude (`lat_deg`, default
+    0° = equator). Particularly useful for tidally locked exoplanets.
   All three use `contourf` + `contour` overlay with a right-side colorbar.
+  Default filenames encode the relevant coordinate (e.g. `T_latpres_zonalavg.png`,
+  `T_latpres_lon180.0.png`, `T_lonpres_lat0.0.png`).
   Fields must be explicitly listed in `cache_fields` in the YAML config (on-demand).
 
 ### Driver scripts updated
 
-- **`run_analysis.py`** — Thinned to ~160 lines. All original CLI flags retained.
+- **`run_analysis.py`** — Thin orchestrator. All original CLI flags retained.
   New flags: `--config`, `--save-cache`, `--save-fields-2d`, `--save-fields-3d`.
-  Supports three input modes: `--filename`, `files.in`, or YAML config.
+  Supports two input modes: `--filename` (single file) or `--config` (YAML batch).
+  `files.in` mode removed — use YAML configs for batch runs.
+  Exits with a clear error if neither `--filename` nor `--config` is provided.
   Inline plot generation driven by YAML `plots:` list; defaults to `vert_1x3` when
   `--vert` is set without a config.
 
-- **`make_plot.py`** — Rewritten as a config-driven cache-replay script. Loads a
-  Diagnostics pickle and runs any plots defined in the YAML `plots:` list. No netCDF
-  re-reading. Default behavior (no config): runs `vert_1x3` if profiles are in cache.
+- **`make_plot.py`** — Cache-replay entry point. Supports two modes:
+  - `--config`: YAML-driven, runs all plots listed in the config.
+  - `--type`: CLI-driven single plot; flags `--var`, `--sim`, `--lev`, `--lat`, `--lon`
+    control what to plot. Validates all arguments against the cache before rendering,
+    with descriptive error messages and nearest-match warnings for `--lat` and `--lon`.
+  Default (no config, no type): runs `vert_1x3` if profiles are in cache.
 
-- **`analysis_utils.py`** — Removed `calc_gmean_profiles` and `exocampy_tools` import.
-  `print_data_to_file` updated to accept `list[Diagnostics]` instead of `datacube`.
-  Added `print_diagnostics()` for formatted screen output.
+- **`analysis_utils.py`** — `read_file_list` removed (files.in mode dropped).
+  `print_data_to_file` accepts `list[Diagnostics]`. `print_diagnostics()` for screen output.
+
+- **`core/cache.py`** — `load()` inserts the package root onto `sys.path` so the
+  `core.data_model` classes resolve correctly when loading from scripts outside the
+  project directory.
 
 ### Files deleted
 - `exocampy_tools.py` (functions absorbed into `core/coords.py`)
@@ -91,30 +201,34 @@ netCDF → core/reader.py → core/compute.py → Diagnostics → core/cache.py 
 ## Architecture overview
 
 ```
-analysis/
+exocam_analysis/
 ├── core/
 │   ├── data_model.py   # Diagnostics, VerticalProfile dataclasses
 │   ├── coords.py       # hybrid2pressure, hybrid2height (vectorized),
 │   │                   # area_weighted_avg (vectorized), calc_gmean_profiles
 │   ├── reader.py       # netCDF → raw dict
 │   ├── compute.py      # raw dict → Diagnostics; tprofile_diags
-│   └── cache.py        # pickle save/load
+│   └── cache.py        # pickle save/load; sys.path fix for external scripts
 ├── plots/
-│   ├── base.py         # abstract Plot + setup_pressure_axis, get_colors, get_labels
+│   ├── base.py         # abstract Plot + save_figure, setup_pressure_axis,
+│   │                   # get_colors, get_labels
 │   ├── registry.py     # @register_plot decorator, get_plot(), list_plots()
 │   ├── vertical.py     # vert_1x3, vert_2x2
-│   └── contour.py      # map_latlon, section_latpres, section_lonpres
+│   └── contour.py      # map_latlon, latpres, lonpres
 ├── configs/
 │   └── example.yaml    # fully annotated YAML template
-├── analysis_utils.py   # read_file_list, print_diagnostics, print_data_to_file
+├── data/               # default output directory for .pkl cache files
+├── results/            # default output directory for .png plot files
+├── analysis_utils.py   # print_diagnostics, print_data_to_file
 ├── run_analysis.py     # main driver
-└── make_plot.py        # cache-replay entry point
+├── make_plot.py        # cache-replay / CLI plotting entry point
+└── inspect_cache.py    # standalone cache metadata utility
 ```
 
 ### Key data flow
 
 ```
-files.in / --filename / YAML
+--filename / --config (YAML)
         │
         ▼
 core/reader.py           read_ncfile() → raw dict
@@ -124,8 +238,8 @@ core/compute.py          compute_all(raw, label, options) → Diagnostics
         │
         ├── analysis_utils.print_diagnostics()   → screen
         ├── analysis_utils.print_data_to_file()  → analysis_output.txt
-        ├── core/cache.save()                    → diagnostics.pkl
-        └── plots/*.render()                     → PNG files
+        ├── core/cache.save()                    → data/diagnostics.pkl
+        └── plots/*.render()                     → results/*.png
                                                         ▲
                                               make_plot.py loads pkl
                                               and re-runs plots without
@@ -156,42 +270,42 @@ directly in any standalone script to access the arrays without re-reading netCDF
 ## What should be tested next
 
 ### Regression / correctness
-- [ ] Run `python run_analysis.py --vert --cf --synch` on a known file and compare
+- [x] Run `python run_analysis.py --vert --cf --synch` on a known file and compare
       screen output numerically against the pre-refactor version (global means should
       match to floating-point precision)
-- [ ] Verify `--printdata` produces `analysis_output.txt` with correct column alignment
+- [x] Verify `--printdata` produces `analysis_output.txt` with correct column alignment
       and values
-- [ ] Check `Q_STRAT` in output file uses scientific notation; all others use fixed
+- [x] Check `Q_STRAT` in output file uses scientific notation; all others use fixed
 
 ### Vectorization correctness
-- [ ] Compare `hybrid2height` output against the old triple-loop version on the same
+- [x] Compare `hybrid2height` output against the old triple-loop version on the same
       input — lev_Z and ilev_Z arrays should be numerically identical
-- [ ] Compare `area_weighted_avg` against the old double-loop version — results should
+- [x] Compare `area_weighted_avg` against the old double-loop version — results should
       match to floating-point precision for a standard 2D ExoCAM field
 
 ### Cache round-trip
-- [ ] Run with `--save-cache diagnostics.pkl`, load in a Python session, verify
+- [x] Run with `--save-cache diagnostics.pkl`, load in a Python session, verify
       `global_means` values and `profile` arrays are intact
-- [ ] Run `make_plot.py --cache diagnostics.pkl` and confirm `vert_profiles.png` is
+- [x] Run `make_plot.py --cache diagnostics.pkl` and confirm `vert_profiles.png` is
       reproduced correctly
 
 ### Contour plots
-- [ ] Run with `--save-fields-2d TS,CLDTOT --save-fields-3d T,Q` and confirm fields
+- [x]] Run with `--save-fields-2d TS,CLDTOT --save-fields-3d T,Q` and confirm fields
       land in `diagnostics.pkl` under `Diagnostics.fields_2d` / `fields_3d`
-- [ ] Run `map_latlon` for `TS` — verify lon×lat orientation is correct (not transposed),
+- [x] Run `map_latlon` for `TS` — verify lon×lat orientation is correct (not transposed),
       colorbar is present, output PNG is saved
-- [ ] Run `section_latpres` for `T` with `zonal_mean: true` — verify lat axis goes
+- [x] Run `section_latpres` for `T` with `zonal_mean: true` — verify lat axis goes
       -90 to 90, pressure axis is log-scale and inverted (TOA at top)
-- [ ] Run `section_lonpres` for `T` at `lat_deg: 0.0` — verify equatorial slice is
+- [x] Run `section_lonpres` for `T` at `lat_deg: 0.0` — verify equatorial slice is
       correct, especially for a tidally locked simulation (substellar point should be
       near lon 180° or wherever FDS peaks)
-- [ ] Test `map_latlon` on a 3D variable with `lev_index` set — verify correct level
+- [x] Test `map_latlon` on a 3D variable with `lev_index` set — verify correct level
       is sliced
 
 ### YAML config mode
-- [ ] Run `python run_analysis.py --config configs/example.yaml` (after editing root/files)
+- [x] Run `python run_analysis.py --config configs/example.yaml` (after editing root/files)
       end-to-end: reads files, computes, saves cache, generates all listed plots
-- [ ] Run `python make_plot.py --cache diagnostics.pkl --config configs/example.yaml`
+- [x] Run `python make_plot.py --cache diagnostics.pkl --config configs/example.yaml`
       and confirm all plot specs execute
 
 ### Edge cases
@@ -200,6 +314,9 @@ directly in any standalone script to access the arrays without re-reading netCDF
 - [ ] `make_plot.py` with a cache that has no profiles (no `--vert`) but requests
       `vert_1x3` — should skip with a clear message
 - [ ] `get_plot('unknown_type')` — should raise `ValueError` listing available types
+- [ ] `make_plot.py --type latpres --var BADVAR` — should exit with cached field list
+- [ ] `make_plot.py --type lonpres --lat 999` — should warn about poor nearest-match
+- [ ] YAML with `name:`/`grav:`/`mwdry:` dict entries — confirmed working (thai.yaml)
 
 ---
 

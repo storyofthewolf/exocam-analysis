@@ -7,15 +7,19 @@
 #   python make_plot.py    --cache diagnostics.pkl --config configs/example.yaml
 
 # Root directory prepended to all filenames
-root: /path/to/data/
+root: /Users/wolfe/Desktop/projects/volcanos/benchmarks
 
 # Files to analyze.  Each entry is either a plain filename string, or a dict
 # with name/grav/mwdry for non-Earth gravity (e.g. other planets).
 files:
-  - modern_earth.cam.h0.avg.nc
-  - noO3_earth.cam.h0.avg.nc
-  - trappist1e_ben1.cam.h0.avg.nc
-  - trappist1e_ben2.cam.h0.avg.nc
+  - name: ExoCAM_thai_ben1_L51_n68equiv.cam.h0.avg.nc
+    grav: 9.1197288
+    mwdry: 28.0
+  - name: ExoCAM_thai_ben2_L51_n68equiv.cam.h0.avg.nc
+    grav: 9.1197288
+    mwdry: 44.0
+  - ExoCAM_thai_hab1_L51_n68equiv.cam.h0.avg.nc
+  - ExoCAM_thai_hab2_L51_n68equiv.cam.h0.avg.nc
   # Example with custom gravity/mwdry:
   # - name: venus_run.cam.h0.avg.nc
   #   grav: 8.87
@@ -24,12 +28,12 @@ files:
 # Computation options
 options:
   vert:      true    # compute vertical profiles (slow, needed for vert_1x3/vert_2x2)
-  synch:     false   # substellar/antistellar means (tidally locked planets)
-  cf:        false   # clear-sky fluxes and cloud radiative effect
+  synch:     true    # substellar/antistellar means (tidally locked planets)
+  cf:        true    # clear-sky fluxes and cloud radiative effect
   printdata: false   # write global means to analysis_output.txt
 
 # Fields to save in cache for contour plots.
-# Only fields listed here will be available to map_latlon / latpres / lonpres plots.
+# Only fields listed here will be available to map_latlon / section_* plots.
 # Omit or leave empty lists to skip contour plot caching.
 cache:
   save: diagnostics.pkl
@@ -69,18 +73,11 @@ plots:
   - type: latpres
     var:       T
     sim_index: 0
-    output:    T_latpres_earth.png
-
-  # --- latitude-pressure slice at a specific longitude ---
-  # - type: latpres
-  #   var:       T
-  #   sim_index: 0
-  #   lon_deg:   180.0
-  #   output:    T_latpres_lon180_earth.png
+    output:    T_latpres_zonalavg.png
 
   # --- longitude-pressure equatorial cross-section ---
   - type: lonpres
     var:       T
     sim_index: 2
     lat_deg:   0.0
-    output:    T_lonpres_trappist.png
+    output:    T_lonpres_lat0.0.png

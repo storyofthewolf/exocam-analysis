@@ -11,7 +11,7 @@ from typing import List
 import matplotlib.pyplot as plt
 
 from core.data_model import Diagnostics
-from plots.base import Plot, setup_pressure_axis, get_colors, get_labels
+from plots.base import Plot, setup_pressure_axis, get_colors, get_labels, save_figure
 from plots.registry import register_plot
 
 
@@ -31,7 +31,7 @@ class VertProfiles1x3(Plot):
     """
 
     def render(self, diagnostics: List[Diagnostics], options: dict) -> None:
-        outfile = options.get('output', 'vert_profiles.png')
+        outfile = options.get('output', 'results/vert_profiles.png')
         labels  = options.get('labels', None)
         colors  = options.get('colors', None)
 
@@ -82,8 +82,7 @@ class VertProfiles1x3(Plot):
 
         fig.suptitle('Global Mean Vertical Profiles', fontsize=12)
         plt.tight_layout()
-        plt.savefig(outfile, dpi=150, bbox_inches='tight')
-        plt.close(fig)
+        save_figure(fig, outfile)
         print(f'vertical profile plot written to {outfile}')
 
 
@@ -113,7 +112,7 @@ class VertProfiles2x2(Plot):
         bottom_title = options.get('bottom_title', '')
         labels       = options.get('labels',       None)
         colors       = options.get('colors',       None)
-        outfile      = options.get('output', 'vert_profiles_2x2.png')
+        outfile      = options.get('output', 'results/vert_profiles_2x2.png')
 
         if not top and not bottom:
             print('vert_2x2: no top/bottom indices specified, skipping.')
@@ -167,6 +166,5 @@ class VertProfiles2x2(Plot):
         axes[0, 1].set_title('Water Vapor')
         fig.suptitle('Global Mean Vertical Profiles', fontsize=13)
         plt.tight_layout()
-        plt.savefig(outfile, dpi=150, bbox_inches='tight')
-        plt.close(fig)
+        save_figure(fig, outfile)
         print(f'vertical profile plot written to {outfile}')

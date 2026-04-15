@@ -1,6 +1,6 @@
 __pycache__
-output.txt
 *.txt
 *.png
 *~
 *.pkl
+.DS_Store

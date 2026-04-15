@@ -16,9 +16,6 @@
 #   # Single file:
 #   python run_analysis.py --filename /path/to/file.nc [--vert] [--cf] [--synch]
 #
-#   # Batch from files.in:
-#   python run_analysis.py [--vert] [--cf] [--synch] [--printdata]
-#
 #   # Batch from YAML config:
 #   python run_analysis.py --config configs/study.yaml
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -55,7 +52,7 @@ parser.add_argument('--cf',         action='store_true',
 parser.add_argument('--nostrout',   action='store_true',
                     help='omit simulation names from output text file')
 parser.add_argument('--filename',   type=str, default=None,
-                    help='single netCDF file (overrides files.in and --config)')
+                    help='single netCDF file (overrides --config)')
 parser.add_argument('--grav',       type=float, default=9.81,
                     help='gravity for --filename mode (default: 9.81 m/s²)')
 parser.add_argument('--mwdry',      type=float, default=28.966,
@@ -151,11 +148,7 @@ elif args.config is not None:
     mode_label = f'files read from {args.config}'
 
 else:
-    # Default: files.in
-    root, num, short_names, grav_arr, mwdry_arr = analysis_utils.read_file_list()
-    filelist = np.array(
-        [os.path.join(root, n) for n in short_names], dtype='U512')
-    mode_label = 'files read from files.in'
+    sys.exit('error: either --filename or --config is required.')
 
 
 # ================================================================
@@ -244,8 +237,8 @@ if args.printdata:
 if cache_path is not None:
     cache.save(all_diagnostics, cache_path)
 elif args.vert:
-    # Backward-compatible: always save profiles.pkl when --vert is used
-    cache.save(all_diagnostics, 'diagnostics.pkl')
+    # Default: save to data/ when --vert is used without --save-cache
+    cache.save(all_diagnostics, 'data/diagnostics.pkl')
 
 
 # ================================================================
@@ -274,6 +267,5 @@ for spec in plot_specs:
 
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 print(' Exiting run_analysis.py')
-print(' ... i hope you found the answers that you seek')
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 print()
