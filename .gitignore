@@ -4,3 +4,10 @@ __pycache__
 *~
 *.pkl
 .DS_Store
+
+
+# Ignore all YAML files in configs/
+configs/*.yaml
+
+# But track the example as the canonical template
+!configs/example.yaml
